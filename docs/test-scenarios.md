@@ -1,7 +1,7 @@
-# EventHub — Booking Management Test Scenarios
+# EventHub — Booking Feature Test Scenarios
 
 Generated: 2026-03-06
-Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
+Scope: Booking creation (Flow 3) and management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 
 ---
 
@@ -97,6 +97,47 @@ Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 1. Send `GET /api/bookings/ref/:ref` with valid JWT and own booking ref
 **Expected Results**: 200 response with full booking data including nested event
 **Business Rule**: `GET /api/bookings/ref/:ref` endpoint
+**Suggested Layer**: API
+
+---
+
+### TC-008: Complete a booking from the event detail page
+**Category**: Happy Path
+**Priority**: P0
+**Preconditions**: User is logged in; an upcoming event has at least one available seat
+**Steps**:
+1. Navigate to `/events` and select an event with a visible "Book Now" button
+2. Enter a valid full name, email, and phone number; leave quantity at 1
+3. Click "Confirm Booking"
+**Expected Results**: A confirmation card appears with a booking reference, customer name, ticket quantity, and total; "View My Bookings" and "Browse More Events" links are available
+**Business Rule**: Flow 3 — Book an Event; successful creation returns a confirmed booking
+**Suggested Layer**: E2E
+
+---
+
+### TC-009: View the newly created booking from the confirmation card
+**Category**: Happy Path
+**Priority**: P1
+**Preconditions**: User has just completed a booking and the confirmation card is visible
+**Steps**:
+1. Click "View My Bookings"
+2. Find the new booking using the reference shown on the confirmation card
+3. Open "View Details"
+**Expected Results**: The booking appears in the user's list and its detail page shows the same reference, event, customer, ticket quantity, and total
+**Business Rule**: Flow 3 → Flow 4; users can view and manage their own bookings
+**Suggested Layer**: E2E
+
+---
+
+### TC-010: Create a booking through the authenticated API
+**Category**: Happy Path
+**Priority**: P1
+**Preconditions**: User has a valid JWT; event exists and has enough seats
+**Steps**:
+1. Send `POST /api/bookings` with `eventId`, valid customer details, and a valid quantity
+2. Read the response and retrieve the user's bookings
+**Expected Results**: API returns 201 with a confirmed booking containing the submitted customer details, event, quantity, calculated total, and booking reference; the booking is present in the user's list
+**Business Rule**: `POST /api/bookings` creates an authenticated user's booking
 **Suggested Layer**: API
 
 ---
@@ -239,6 +280,32 @@ Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 
 ---
 
+### TC-110: Booking quantity consumes the matching number of personal seats
+**Category**: Business Rule
+**Priority**: P0
+**Preconditions**: User owns a dynamic event with known total seats and no existing bookings for it
+**Steps**:
+1. Create a booking for 3 tickets
+2. Retrieve the event detail and the user's bookings for that event
+**Expected Results**: The booking quantity is 3 and the user's available seats decrease by 3; the next booking for that event is limited by the remaining personal availability
+**Business Rule**: Rule 6 — dynamic-event availability is computed as total seats minus the user's booked quantities
+**Suggested Layer**: API
+
+---
+
+### TC-111: Booking list filters by event and status
+**Category**: Business Rule
+**Priority**: P2
+**Preconditions**: User has bookings for at least two events; bookings include the requested status
+**Steps**:
+1. Send `GET /api/bookings?eventId=<eventId>&status=confirmed` with the user's JWT
+2. Inspect every returned booking and pagination metadata
+**Expected Results**: Every returned booking belongs to the requested event and has confirmed status; pagination metadata matches the filtered result set
+**Business Rule**: `GET /api/bookings` supports `eventId` and `status` filters scoped to the authenticated user
+**Suggested Layer**: API
+
+---
+
 ## Security
 
 ### TC-200: Cross-user booking access returns "Access Denied" (UI)
@@ -268,14 +335,14 @@ Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 
 ---
 
-### TC-202: Cross-user booking cancellation returns 403 via API
+### TC-202: Cross-user booking cancellation cannot delete another user's booking
 **Category**: Security
 **Priority**: P0
 **Preconditions**: User A has a booking; User B has a valid JWT
 **Steps**:
 1. Send `DELETE /api/bookings/:userA_booking_id` with User B's JWT
-**Expected Results**: HTTP 403; booking is NOT deleted from the database
-**Business Rule**: `bookingService.cancelBooking` — `booking.userId !== userId` → ForbiddenError
+**Expected Results**: Request is rejected (404 with the current ownership-filtered lookup); User A's booking remains unchanged and is still accessible to User A
+**Business Rule**: Cancellation lookup is constrained to the authenticated user; another user's booking cannot be deleted
 **Suggested Layer**: API
 
 ---
@@ -324,6 +391,31 @@ Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 1. Send `GET /api/bookings/ref/:userA_ref` with User B's JWT
 **Expected Results**: HTTP 403; "You do not own this booking"
 **Business Rule**: `bookingService.getBookingByRef` — ownership check
+**Suggested Layer**: API
+
+---
+
+### TC-207: Unauthenticated booking creation returns 401
+**Category**: Security
+**Priority**: P0
+**Preconditions**: No valid JWT
+**Steps**:
+1. Send `POST /api/bookings` with otherwise valid event and customer data but no Authorization header
+**Expected Results**: HTTP 401; no booking is created and event availability is unchanged
+**Business Rule**: Authentication middleware applies to every `/api/bookings` route
+**Suggested Layer**: API
+
+---
+
+### TC-208: Unauthenticated cancellation by ID returns 401
+**Category**: Security
+**Priority**: P1
+**Preconditions**: A booking exists; request has no valid JWT
+**Steps**:
+1. Send `DELETE /api/bookings/:id` without an Authorization header
+2. Retrieve the booking using its owner's JWT
+**Expected Results**: Delete request returns 401; the owner's booking remains present
+**Business Rule**: Authentication middleware protects booking cancellation
 **Suggested Layer**: API
 
 ---
@@ -437,6 +529,81 @@ Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 **Expected Results**: Error empty state renders: "Couldn't load bookings", "Failed to connect to the server. Please try again.", and a "Retry" button
 **Business Rule**: `isError` branch in `BookingsContent` component
 **Suggested Layer**: Component / E2E
+
+---
+
+### TC-309: Create booking with a one-character name returns validation error
+**Category**: Negative
+**Priority**: P1
+**Preconditions**: User is authenticated; target event exists and has seats
+**Steps**:
+1. Send `POST /api/bookings` with `customerName: "A"` and otherwise valid data
+**Expected Results**: HTTP 400 identifies `customerName`; no booking is created
+**Business Rule**: Customer name must contain at least 2 characters
+**Suggested Layer**: API
+
+---
+
+### TC-310: Create booking with malformed email returns validation error
+**Category**: Negative
+**Priority**: P1
+**Preconditions**: User is authenticated; target event exists and has seats
+**Steps**:
+1. Send `POST /api/bookings` with an invalid `customerEmail` (for example, `not-an-email`)
+**Expected Results**: HTTP 400 identifies `customerEmail`; no booking is created
+**Business Rule**: Customer email must be a valid email address
+**Suggested Layer**: API
+
+---
+
+### TC-311: Create booking with invalid phone characters or fewer than 10 digits returns validation error
+**Category**: Negative
+**Priority**: P1
+**Preconditions**: User is authenticated; target event exists and has seats
+**Steps**:
+1. Submit once with fewer than 10 phone characters/digits
+2. Submit once with disallowed alphabetic characters in the phone
+**Expected Results**: Each request returns HTTP 400 identifying `customerPhone`; no booking is created
+**Business Rule**: Phone requires at least 10 characters and permits only digits, `+`, `-`, spaces, and parentheses
+**Suggested Layer**: API
+
+---
+
+### TC-312: Create booking with a fractional quantity returns validation error
+**Category**: Negative
+**Priority**: P1
+**Preconditions**: User is authenticated; target event exists and has seats
+**Steps**:
+1. Send `POST /api/bookings` with `quantity: 1.5` and otherwise valid data
+**Expected Results**: HTTP 400 identifies `quantity`; no booking is created
+**Business Rule**: Quantity must be an integer from 1 through 10
+**Suggested Layer**: API
+
+---
+
+### TC-313: Create booking with a missing or non-positive event ID returns validation error
+**Category**: Negative
+**Priority**: P1
+**Preconditions**: User is authenticated
+**Steps**:
+1. Submit a booking without `eventId`
+2. Submit a booking with `eventId: 0`
+**Expected Results**: Both requests return HTTP 400 identifying `eventId`; no booking is created
+**Business Rule**: Event ID is required and must be a positive integer
+**Suggested Layer**: API
+
+---
+
+### TC-314: Failed booking at the booking limit does not silently remove an existing booking
+**Category**: Negative
+**Priority**: P0
+**Preconditions**: User has exactly 9 bookings; capture all booking references; target request has invalid customer data or insufficient seats
+**Steps**:
+1. Submit the invalid or impossible 10th booking request
+2. Retrieve the user's bookings and compare them with the captured references
+**Expected Results**: Request fails with the relevant validation or seat error; all 9 pre-existing bookings remain unchanged
+**Business Rule**: FIFO pruning is intended to replace the oldest booking only when a new booking succeeds; a failed request must not destroy existing user data
+**Suggested Layer**: API
 
 ---
 
@@ -558,6 +725,33 @@ Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 **Expected Results**: `bookingRef` starts with "1-XXXXXX" (digit is used as-is, `toUpperCase()` has no effect on digits)
 **Business Rule**: `randomRef` — `prefix = (eventTitle?.[0] ?? 'E').toUpperCase()`
 **Suggested Layer**: API / Unit
+
+---
+
+### TC-409: Available seats below the per-booking maximum constrain the quantity selector
+**Category**: Edge Case
+**Priority**: P1
+**Preconditions**: User is logged in; selected event has between 1 and 9 available seats
+**Steps**:
+1. Open the event detail page
+2. Increase the ticket quantity until the increment control becomes disabled
+3. Submit the maximum selectable quantity
+**Expected Results**: Selector maximum equals the lesser of 10 and available seats; the booking succeeds without exceeding availability
+**Business Rule**: Flow 3 quantity selection is limited to 1–10 tickets and cannot exceed available seats
+**Suggested Layer**: E2E
+
+---
+
+### TC-410: Zero-price event booking has a zero total
+**Category**: Edge Case
+**Priority**: P2
+**Preconditions**: User is authenticated; a valid event exists with price 0 and available seats
+**Steps**:
+1. Create a booking for 2 tickets
+2. Inspect the response and booking detail payment summary
+**Expected Results**: Booking is confirmed and `totalPrice` is 0; no negative or invalid amount is displayed
+**Business Rule**: Event price may be 0; total price equals price multiplied by quantity
+**Suggested Layer**: API / E2E
 
 ---
 
@@ -703,4 +897,56 @@ Scope: Booking Management (Flow 4 — View, Cancel, Clear, Refund Eligibility)
 2. Observe pagination controls
 **Expected Results**: `Pagination` component renders with correct `currentPage` and `totalPages`; clicking next page updates URL `?page=N` and loads next page of bookings
 **Business Rule**: Pagination in `BookingsContent` driven by `pagination` from API response
+**Suggested Layer**: E2E / Component
+
+---
+
+### TC-511: Booking form quantity controls and total update together
+**Category**: UI State
+**Priority**: P1
+**Preconditions**: User is logged in; selected event has at least 3 available seats
+**Steps**:
+1. Open the event detail page and note the default quantity and total
+2. Click "+" twice, then click "−" once
+**Expected Results**: Quantity and price summary update after each change; final quantity is 2 and total is twice the event's per-ticket price
+**Business Rule**: Flow 3 quantity selector and Rule 9 price calculation
+**Suggested Layer**: Component / E2E
+
+---
+
+### TC-512: Booking form prevents decrementing below one ticket
+**Category**: UI State
+**Priority**: P2
+**Preconditions**: User is on an event detail page with at least one available seat
+**Steps**:
+1. Leave quantity at its default value of 1
+2. Inspect and attempt to activate the decrement control
+**Expected Results**: Quantity remains 1 and the decrement control is disabled
+**Business Rule**: Quantity minimum is 1
+**Suggested Layer**: Component / E2E
+
+---
+
+### TC-513: Sold-out event cannot be submitted for booking
+**Category**: UI State
+**Priority**: P1
+**Preconditions**: Event has zero available seats
+**Steps**:
+1. Open the event detail page
+2. Inspect the booking form's submit control
+**Expected Results**: Submit control is disabled and labeled "Sold Out"; no booking request can be submitted from the form
+**Business Rule**: Booking is unavailable when event availability is zero
+**Suggested Layer**: E2E / Component
+
+---
+
+### TC-514: Booking form displays field validation and does not submit invalid values
+**Category**: UI State
+**Priority**: P1
+**Preconditions**: User is logged in; event has available seats
+**Steps**:
+1. Leave name, email, and phone blank or enter invalid values
+2. Click "Confirm Booking"
+**Expected Results**: Inline validation messages identify invalid fields; no confirmation card appears and no booking is created
+**Business Rule**: Booking form requires a name of at least 2 characters, valid email, valid 10-digit phone, and a valid ticket quantity
 **Suggested Layer**: E2E / Component

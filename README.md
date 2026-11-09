@@ -104,6 +104,12 @@ npm run dev
 | `npm run migrate` | Run `prisma migrate dev` (interactive, creates migration files) |
 | `npm run db:push` | Push schema to DB without migration files (non-interactive) |
 | `npm run build` | Build the Next.js frontend for production |
+| `npm test` | Run the Playwright end-to-end tests |
+| `npm run test:report` | Open the latest Playwright HTML report |
+
+### Playwright CI
+
+The GitHub Actions workflow runs all Playwright tests on every push to `main` and can also be started manually. It uploads the HTML report as a 30-day artifact, including when tests fail. The tests use the base URL configured in `playwright.config.ts`.
 
 ---
 

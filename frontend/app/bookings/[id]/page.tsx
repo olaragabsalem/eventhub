@@ -80,10 +80,12 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const fieldId = label.toLowerCase().replace(/\s+/g, '-');
+
   return (
-    <div className="flex justify-between items-start gap-4">
+    <div data-testid={`booking-detail-field-${fieldId}`} className="flex justify-between items-start gap-4">
       <span className="text-sm text-gray-500 shrink-0">{label}</span>
-      <span className="text-sm font-medium text-gray-900 text-right">{children}</span>
+      <span data-testid="booking-detail-field-value" className="text-sm font-medium text-gray-900 text-right">{children}</span>
     </div>
   );
 }
@@ -189,9 +191,9 @@ export default function BookingDetailPage() {
           <DetailSection title="Payment Summary">
             <Field label="Tickets">{booking.quantity}</Field>
             <Field label="Price per ticket">{booking.event ? fmt_price(parseFloat(booking.event.price)) : '—'}</Field>
-            <div className="flex justify-between items-center pt-2 border-t border-gray-100">
+            <div data-testid="booking-detail-field-total-paid" className="flex justify-between items-center pt-2 border-t border-gray-100">
               <span className="text-sm font-semibold text-gray-900">Total Paid</span>
-              <span className="text-lg font-bold text-indigo-700">{fmt_price(booking.totalPrice)}</span>
+              <span data-testid="booking-detail-field-value" className="text-lg font-bold text-indigo-700">{fmt_price(booking.totalPrice)}</span>
             </div>
           </DetailSection>
 
