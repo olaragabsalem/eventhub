@@ -77,9 +77,11 @@ async function createBooking(page) {
   return { bookingRef, eventTitle, event, createdBooking, customerName, customerEmail, customerPhone };
 }
 
-async function getDetailFieldValue(page, fieldId) {
-  const value = page.getByTestId(`booking-detail-field-${fieldId}`)
-    .getByTestId('booking-detail-field-value');
+async function getDetailFieldValue(page, label) {
+  const value = page.getByText(label, { exact: true })
+    .locator('xpath=..')
+    .locator('span')
+    .nth(1);
   await expect(value).toBeVisible();
   return (await value.innerText()).trim();
 }
@@ -118,11 +120,11 @@ test.describe('Booking flow', () => {
     await expect(page.getByRole('heading', { name: booking.eventTitle })).toBeVisible();
 
     await expect(page.getByRole('heading', { name: 'Event Details' })).toBeVisible();
-    expect(await getDetailFieldValue(page, 'event')).toBe(booking.event.title);
-    expect(await getDetailFieldValue(page, 'category')).toBe(booking.event.category);
-    expect(await getDetailFieldValue(page, 'date')).toBe(formatEventDate(booking.event.eventDate));
-    expect(await getDetailFieldValue(page, 'venue')).toBe(booking.event.venue);
-    expect(await getDetailFieldValue(page, 'city')).toBe(booking.event.city);
+    expect(await getDetailFieldValue(page, 'Event')).toBe(booking.event.title);
+    expect(await getDetailFieldValue(page, 'Category')).toBe(booking.event.category);
+    expect(await getDetailFieldValue(page, 'Date')).toBe(formatEventDate(booking.event.eventDate));
+    expect(await getDetailFieldValue(page, 'Venue')).toBe(booking.event.venue);
+    expect(await getDetailFieldValue(page, 'City')).toBe(booking.event.city);
 
     await expect(page.getByRole('heading', { name: 'Customer Details' })).toBeVisible();
     for (const value of [booking.customerName, booking.customerEmail, booking.customerPhone]) {
@@ -130,14 +132,14 @@ test.describe('Booking flow', () => {
     }
 
     await expect(page.getByRole('heading', { name: 'Payment Summary' })).toBeVisible();
-    expect(await getDetailFieldValue(page, 'tickets')).toBe(String(booking.createdBooking.quantity));
-    expect(await getDetailFieldValue(page, 'price-per-ticket')).toBe(formatPrice(booking.event.price));
-    expect(await getDetailFieldValue(page, 'total-paid')).toBe(formatPrice(booking.createdBooking.totalPrice));
+    expect(await getDetailFieldValue(page, 'Tickets')).toBe(String(booking.createdBooking.quantity));
+    expect(await getDetailFieldValue(page, 'Price per ticket')).toBe(formatPrice(booking.event.price));
+    expect(await getDetailFieldValue(page, 'Total Paid')).toBe(formatPrice(booking.createdBooking.totalPrice));
     expect(Number(booking.createdBooking.totalPrice)).toBeCloseTo(
       Number(booking.event.price) * booking.createdBooking.quantity,
       2,
     );
-    expect(await getDetailFieldValue(page, 'booking-id')).toBe(bookingId);
+    expect(await getDetailFieldValue(page, 'Booking ID')).toBe(bookingId);
     await expect(page.getByRole('button', { name: 'Check eligibility for refund?' })).toBeVisible();
   });
 
